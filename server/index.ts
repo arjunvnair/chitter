@@ -5,16 +5,20 @@ import Router from "koa-router"
 import bodyParser from "koa-bodyparser"
 import websocket from "koa-easy-ws"
 
+import cors from "@koa/cors"
+
 import WebSocket from "ws"
 import { PongWS, filterPingPongMessages } from "@cs125/pingpongws"
 
-import { ConnectionQuery, Versions, JoinMessage, RoomsMessage } from "../types"
+import { ConnectionQuery, Versions, JoinMessage, RoomsMessage, ChitterMessage } from "../types"
 
 import { String } from "runtypes"
 const VERSIONS = {
   commit: String.check(process.env.GIT_COMMIT),
   server: String.check(process.env.npm_package_version),
 }
+
+// This is just vanilla TypeScript, not React TypeScript.
 
 // Set up Koa instance and router
 const app = new Koa()
@@ -66,7 +70,22 @@ router.get("/", async (ctx) => {
     filterPingPongMessages(async ({ data }) => {
       // Handle incoming messages here
       const message = JSON.parse(data.toString())
-      if (JoinMessage.guard(message)) {
+      // .guard() checks if the data of message matches the shape of JoinMessage as a type
+      if (ChitterMessage.guard(message)) {
+        // Send message to all components that are subscribed to the room.
+        // Get the Client ID's from the message
+        const { clientID, room } = message
+        const allClients = Object.keys(roomToClientIDs[room])
+        const allWebSockets: WebSocket[] = []
+        allClients.forEach((key) => {
+          allWebSockets.push(clientIDtoWebsocket[key])
+        })
+        allWebSockets.forEach((ws) => {
+          ws.send(JSON.stringify(message))
+        })
+        // See if we can send the message back!
+      } else if (JoinMessage.guard(message)) {
+        // TODO: handle join message by updating client and room mappings
         const { roomID } = message
         if (!(roomID in roomToClientIDs)) {
           roomToClientIDs[roomID] = {}
@@ -79,6 +98,9 @@ router.get("/", async (ctx) => {
 
         const roomsMessage = RoomsMessage.check({ type: "rooms", rooms: Object.keys(clientIDtoRooms[clientID]) })
         ws.send(JSON.stringify(roomsMessage))
+        // For now, just automatically create the room if it doesn't exist, although we'll
+        // fix this later
+        // Reply with a RoomMessage
       } else {
         // As long as the if-else above is exhaustive over all possible client messages,
         // this is a good sanity check
@@ -101,9 +123,11 @@ router.get("/", async (ctx) => {
   })
 })
 
-// Eventually we'll need to add a MongoDB connection and CORS, but we can keep this simple for now
+// Eventually we'll need to add a MongoDB connection, but we can keep this simple for now
+
+// This is the actual part where we start the server
 const port = process.env.BACKEND_PORT ? parseInt(process.env.BACKEND_PORT) : 8888
-app.use(bodyParser()).use(websocket()).use(router.routes()).use(router.allowedMethods()).listen(port)
+app.use(bodyParser()).use(websocket()).use(router.routes()).use(router.allowedMethods()).use(cors()).listen(port)
 
 process.on("uncaughtException", (err) => {
   console.error(err)

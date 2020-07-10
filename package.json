@@ -30,6 +30,8 @@
   "types": "client/dist/index.d.ts",
   "dependencies": {
     "@cs125/pingpongws": "^2020.5.0",
+    "@koa/cors": "^3.1.0",
+    "@types/koa__cors": "^3.0.1",
     "koa": "^2.13.0",
     "koa-bodyparser": "^4.3.0",
     "koa-easy-ws": "https://github.com/cs125-illinois/koa-easy-ws.git",

@@ -8,6 +8,7 @@ import { Record, Static, String, Literal, Array, Union } from "runtypes"
 // and compilation
 
 export type RoomID = string
+export type MessageContents = string
 
 // Combined versions and commits, assembled on the server
 export const Versions = Record({

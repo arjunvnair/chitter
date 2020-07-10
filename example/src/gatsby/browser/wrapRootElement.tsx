@@ -8,6 +8,7 @@ const CHITTER_SERVER = String.check(process.env.CHITTER_SERVER)
 
 console.log(`CHITTER_SERVER: ${CHITTER_SERVER}`)
 
+// This is where the context wraps the entire page for Gatsby.
 export const wrapRootElement: GatsbyBrowser["wrapRootElement"] = ({ element }: WrapRootElementBrowserArgs) => {
   return <ChitterProvider server={CHITTER_SERVER}>{element}</ChitterProvider>
 }

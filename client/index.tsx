@@ -8,7 +8,7 @@ import { PingWS, filterPingPongMessages } from "@cs125/pingpongws"
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
-import { ConnectionQuery, RoomsMessage, RoomID, ChitterMessage, JoinMessage } from "../types"
+import { ConnectionQuery, RoomsMessage, RoomID, ChitterMessage, JoinMessage, MessageContents } from "../types"
 
 import { String } from "runtypes"
 const VERSION = String.check(process.env.npm_package_version)
@@ -20,6 +20,9 @@ export interface ChitterContext {
   connected: boolean
   rooms: RoomID[]
   join: (room: RoomID, onReceive: (message: ChitterMessage) => void) => void
+  messages: Record<RoomID, ChitterMessage[]>
+  sendMessage: (room: RoomID, contents: MessageContents, onReceive: (message: ChitterMessage) => void) => void
+  clientID: string
 }
 
 // Context provider component that will wrap the entire app.
@@ -27,32 +30,46 @@ export interface ChitterContext {
 // context subscribers to join rooms and send and receive messages
 export interface ChitterProviderProps {
   server: string
-  children: ReactNode
+  children: ReactNode // Can wrap itself around another react component
 }
+
+// State only gets used once
 export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, children }) => {
   // UniqueID that identifies this client. Saved in sessionStorage to be stable across refreshes,
   // but not in localStorage to allow different rooms for each tab
   // Need to make sure that we don't fetch this during SSR...
   const clientID = useRef<string>((typeof window !== "undefined" && sessionStorage.getItem("chitter:id")) || uuidv4())
 
+  // Use ref is a way to set up a "private variable". This useRef will only be established on initial render, and it is not reassigned if the component re-renders.
+
   // State that we will pass to context subscribers
   // Usually there is a one-to-one mapping between parts of the context object and state
   // on the context provider
   const [connected, setConnected] = useState(false)
   const [rooms, setRooms] = useState<RoomID[]>([])
+  const [messages, setMessages] = useState<Record<RoomID, ChitterMessage[]>>({})
 
   // Set up the websocket connection
   const connection = useRef<ReconnectingWebSocket | undefined>(undefined)
+
+  // The code inside here will run once when the component mounts, and again when the server variable changes.
   useEffect(() => {
     sessionStorage.setItem("chitter:id", clientID.current)
-
     // useEffect runs after the initial render, and (in this case) any time the server configuration changes
-    connection.current?.close()
+    connection.current?.close() // UseRef gives back a current property, (? is optional property syntax like in Kotlin)
+    // Close any existing connections before we go forward.
+
+    // Sending three pieces of information to the server (cannot send header through web socket)
+    // We know the Client ID, and the version information.
     const connectionQuery = ConnectionQuery.check({
       clientID: clientID.current,
       version: VERSION,
       commit: COMMIT,
     })
+
+    // Set up the websocket connection.
+    // PingWS made my Geoff to help keep the socket connection healthy.
+    // ReconnectingWebSocket is a component that will try to reconnect if the connection has appeared to have died.
     connection.current = PingWS(
       new ReconnectingWebSocket(`${server}?${queryString.stringify(connectionQuery)}`, [], { startClosed: true })
     )
@@ -68,6 +85,7 @@ export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, childr
       setConnected(false)
     })
 
+    // Messages event listener. This is what gets called when messages arrive from the server.
     connection.current.addEventListener(
       "message",
       filterPingPongMessages(({ data }) => {
@@ -75,24 +93,51 @@ export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, childr
         // Handle any incoming messages that we could receive from the server.
         const message = JSON.parse(data)
         if (RoomsMessage.guard(message)) {
-          console.log(message.rooms)
           setRooms(message.rooms)
+        }
+        if (ChitterMessage.guard(message)) {
+          // If this is a Chitter Message, we want to send this to the client.
+          const messagesInRoom = messages[message.room] ? messages[message.room] : []
+          messagesInRoom.unshift(message)
+          const newObj = { ...messages, [message.room]: messagesInRoom }
+          setMessages(newObj)
         }
       })
     )
 
+    // This function will be called when the component is unmounted / connection is closed.
     connection.current.reconnect()
     return (): void => {
       connection.current?.close()
+      connection.current = undefined
     }
-  }, [server])
+  }, [server, messages]) // This is the server variable that will cause the component to re-render on change.
 
   const join = useCallback((room: RoomID) => {
     const joinMessage = JoinMessage.check({ type: "join", roomID: room })
     connection.current?.send(JSON.stringify(joinMessage))
   }, [])
 
-  return <ChitterContext.Provider value={{ connected, rooms, join }}>{children}</ChitterContext.Provider>
+  const sendMessage = useCallback((room: RoomID, contents: MessageContents) => {
+    const message = ChitterMessage.check({
+      type: "message",
+      id: uuidv4(),
+      clientID: clientID.current,
+      room,
+      messageType: "text",
+      contents,
+    })
+    console.log(message)
+    connection.current?.send(JSON.stringify(message))
+  }, [])
+
+  // This is not a presentational component: we are returning / rendering a Context Provider.
+  // Passing down the connected boolean, the rooms and the join method.
+  return (
+    <ChitterContext.Provider value={{ connected, rooms, messages, join, sendMessage, clientID: clientID.current }}>
+      {children}
+    </ChitterContext.Provider>
+  )
 }
 
 ChitterProvider.propTypes = {
@@ -110,9 +155,14 @@ export const useChitter = (): ChitterContext => {
 export const ChitterContext = createContext<ChitterContext>({
   connected: false,
   rooms: [],
+  messages: {},
   join: (): void => {
     throw new Error("ChitterProvider not set")
   },
+  sendMessage: (): void => {
+    throw new Error("ChitterProvider not set")
+  },
+  clientID: "",
 })
 
 export { ChitterMessage, RoomID }

@@ -14,6 +14,7 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { P } from "@cs125/gatsby-theme-cs125/src/material-ui"
 import TextField from "@material-ui/core/TextField"
 import { CSSProperties } from "@material-ui/core/styles/withStyles"
+import { Typography } from "@material-ui/core"
 
 // Set up styles for the various parts of our little UI
 // makeStyles allows us to use the passed theme as needed, which we don't do here (yet)
@@ -44,22 +45,23 @@ export interface ChittererProps {
   style: CSSProperties
 }
 export const Chitterer: React.FC<ChittererProps> = ({ room, ...props }) => {
-  const { connected, join } = useChitter()
+  // This exposes two pieces of state: connected boolean (connection to backend server) and a function (join) which gets called when the component starts up.
+  // This is where the component subscribes to the context provider.
+  const { connected, join, sendMessage, messages, clientID } = useChitter()
   const classes = useStyles()
-
-  const [messages, setMessages] = useState<ChitterMessage[]>([])
 
   // useEffect hooks run after the initial render and then whenever their dependencies change
   // Here we join the room this component is configured to connect to
   // So far the callback we register just appends new messages to our array, which seems reasonable
   // but is something we may need to update later
   useEffect(() => {
+    // This join function is from the above useChitterer()
     if (connected) {
       join(room, message => {
-        setMessages(m => m.concat(message))
+        console.log(message)
       })
     }
-  }, [connected, join, room, setMessages])
+  }, [connected, join, room]) // Any time any of these dependencies change, the component will re-render
 
   // Callbacks for our input element below
   // You can define these right on the element itself, but then they are recreated on every render
@@ -80,18 +82,13 @@ export const Chitterer: React.FC<ChittererProps> = ({ room, ...props }) => {
         if (!event.ctrlKey) {
           // Eventually we'll want the context provider to assemble the message, since it maintains the client ID
           // For now we'll mock out something so that we can insert it into our array
-          const newMessage = ChitterMessage.check({
-            type: "message",
-            id: uuidv4(),
-            clientID: "",
-            room,
-            messageType: "text",
-            contents,
-          })
           // TODO: Actually send the message
           // For now, just add it to our message list
-          setMessages(m => [newMessage, ...m])
+          sendMessage(room, contents, () => {
+            return null
+          })
           setInput("")
+          console.log(clientID)
         } else {
           setInput(i => i + "\n")
         }
@@ -99,15 +96,17 @@ export const Chitterer: React.FC<ChittererProps> = ({ room, ...props }) => {
         event.preventDefault()
       }
     },
-    [room, setMessages]
+    [room, sendMessage, clientID]
   )
 
   return (
     <div className={classes.chitterer} {...props}>
       <div className={classes.messages}>
-        {messages.map((message, i) => (
+        {messages[room]?.map((message, i) => (
           <div key={i} className={classes.message}>
-            <P>{message.contents}</P>
+            <Typography paragraph={true} align={clientID == message.clientID ? "left" : "right"}>
+              {message.contents}
+            </Typography>
           </div>
         ))}
       </div>
