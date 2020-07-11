@@ -40,9 +40,11 @@ export type ConnectionQuery = Static<typeof ConnectionQuery>
 // But... in this case, we have one message type that clearly needs to move
 // in both directions
 // TODO: Add things here as needed
+// TODO: Maybe add some sort of bearer token for user identification? This info could be obfuscated when sending the message to other clients.
 export const ChitterMessage = Record({
   type: Literal("message"),
   id: String,
+  displayName: String, // When being sent from client -> server, no need to specify this; will be overwritten anyway as verification
   clientID: String,
   room: String,
   messageType: String,

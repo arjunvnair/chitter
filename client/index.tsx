@@ -95,7 +95,7 @@ export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, childr
         if (RoomsMessage.guard(message)) {
           setRooms(message.rooms)
         }
-        if (ChitterMessage.guard(message)) {
+        else if (ChitterMessage.guard(message)) {
           // If this is a Chitter Message, we want to send this to the client.
           const messagesInRoom = messages[message.room] ? messages[message.room] : []
           messagesInRoom.unshift(message)
@@ -121,6 +121,7 @@ export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, childr
   const sendMessage = useCallback((room: RoomID, contents: MessageContents) => {
     const message = ChitterMessage.check({
       type: "message",
+      displayName: "", // We leave this empty because the server will determine this anyway
       id: uuidv4(),
       clientID: clientID.current,
       room,

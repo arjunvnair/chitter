@@ -72,6 +72,7 @@ router.get("/", async (ctx) => {
       const message = JSON.parse(data.toString())
       // .guard() checks if the data of message matches the shape of JoinMessage as a type
       if (ChitterMessage.guard(message)) {
+        message.displayName = retrieveDisplayName(message.clientID)
         // Send message to all components that are subscribed to the room.
         // Get the Client ID's from the message
         const { clientID, room } = message
@@ -122,6 +123,19 @@ router.get("/", async (ctx) => {
     // TODO: Update various mappings appropriately
   })
 })
+
+let dummyCount = 0 // TODO: Remove both of these variables once an actual user identity service is implemented
+const clientIDToDummyNumber: Map<ClientID, number> = new Map<ClientID, number>()
+
+function retrieveDisplayName(
+  clientID: ClientID /* We will need to replace this with a bearer token and implement an identity service in order to give this method actual functionality */
+): string {
+  if (!clientIDToDummyNumber.has(clientID)) {
+    clientIDToDummyNumber.set(clientID, ++dummyCount) // This is a dummy method for now
+  }
+  const dummyNum = clientIDToDummyNumber.get(clientID)
+  return "Thing " + dummyNum?.toString()
+}
 
 // Eventually we'll need to add a MongoDB connection, but we can keep this simple for now
 

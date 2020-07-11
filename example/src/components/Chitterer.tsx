@@ -105,7 +105,7 @@ export const Chitterer: React.FC<ChittererProps> = ({ room, ...props }) => {
         {messages[room]?.map((message, i) => (
           <div key={i} className={classes.message}>
             <Typography paragraph={true} align={clientID == message.clientID ? "left" : "right"}>
-              {message.contents}
+              <b>{message.displayName}</b>: {message.contents}
             </Typography>
           </div>
         ))}
