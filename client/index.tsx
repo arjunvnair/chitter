@@ -21,7 +21,7 @@ export interface ChitterContext {
   rooms: RoomID[]
   join: (room: RoomID, onReceive: (message: ChitterMessage) => void) => void
   messages: Record<RoomID, ChitterMessage[]>
-  sendMessage: (room: RoomID, contents: MessageContents, onReceive: (message: ChitterMessage) => void) => void
+  sendMessage: (room: RoomID, contents: MessageContents, googleIdToken: string, onReceive: (message: ChitterMessage) => void) => void
   clientID: string
 }
 
@@ -118,9 +118,10 @@ export const ChitterProvider: React.FC<ChitterProviderProps> = ({ server, childr
     connection.current?.send(JSON.stringify(joinMessage))
   }, [])
 
-  const sendMessage = useCallback((room: RoomID, contents: MessageContents) => {
+  const sendMessage = useCallback((room: RoomID, contents: MessageContents, googleIDToken: string) => {
     const message = ChitterMessage.check({
       type: "message",
+      googleIDToken: googleIDToken,
       displayName: "", // We leave this empty because the server will determine this anyway
       id: uuidv4(),
       clientID: clientID.current,

@@ -80,15 +80,29 @@ export const Chitterer: React.FC<ChittererProps> = ({ room, ...props }) => {
     (event: React.KeyboardEvent<HTMLDivElement>, contents: string) => {
       if (event.key == "Enter") {
         if (!event.ctrlKey) {
-          // Eventually we'll want the context provider to assemble the message, since it maintains the client ID
-          // For now we'll mock out something so that we can insert it into our array
-          // TODO: Actually send the message
-          // For now, just add it to our message list
-          sendMessage(room, contents, () => {
-            return null
-          })
-          setInput("")
-          console.log(clientID)
+          const auth2 = window.gapi.auth2.getAuthInstance()
+
+          if (auth2.isSignedIn.get()) {
+            // We can only send messages if the user is signed in
+            const profile = auth2.currentUser.get().getBasicProfile()
+            console.log("ID: " + profile.getId())
+            console.log("Full Name: " + profile.getName())
+            console.log("Given Name: " + profile.getGivenName())
+            console.log("Family Name: " + profile.getFamilyName())
+            console.log("Image URL: " + profile.getImageUrl())
+            console.log("Email: " + profile.getEmail())
+
+            const googleIDToken: string = auth2.currentUser.get().getAuthResponse().id_token
+
+            sendMessage(room, contents, googleIDToken, () => {
+              return null
+            })
+            setInput("")
+            console.log(clientID)
+          } else {
+            // If the user is not signed in, do not send the message and inform them
+            throw new Error("Please sign in to send messages.") // TODO: Create a popup box or some other GUI indicator
+          }
         } else {
           setInput(i => i + "\n")
         }

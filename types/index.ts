@@ -44,6 +44,7 @@ export type ConnectionQuery = Static<typeof ConnectionQuery>
 export const ChitterMessage = Record({
   type: Literal("message"),
   id: String,
+  googleIDToken: String,
   displayName: String, // When being sent from client -> server, no need to specify this; will be overwritten anyway as verification
   clientID: String,
   room: String,

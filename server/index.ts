@@ -12,6 +12,7 @@ import { PongWS, filterPingPongMessages } from "@cs125/pingpongws"
 
 import { ConnectionQuery, Versions, JoinMessage, RoomsMessage, ChitterMessage } from "../types"
 
+import { OAuth2Client } from "google-auth-library"
 import { String } from "runtypes"
 const VERSIONS = {
   commit: String.check(process.env.GIT_COMMIT),
@@ -72,7 +73,7 @@ router.get("/", async (ctx) => {
       const message = JSON.parse(data.toString())
       // .guard() checks if the data of message matches the shape of JoinMessage as a type
       if (ChitterMessage.guard(message)) {
-        message.displayName = retrieveDisplayName(message.clientID)
+        message.displayName = await retrieveDisplayName(message.googleIDToken)
         // Send message to all components that are subscribed to the room.
         // Get the Client ID's from the message
         const { clientID, room } = message
@@ -124,17 +125,33 @@ router.get("/", async (ctx) => {
   })
 })
 
-let dummyCount = 0 // TODO: Remove both of these variables once an actual user identity service is implemented
-const clientIDToDummyNumber: Map<ClientID, number> = new Map<ClientID, number>()
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
-function retrieveDisplayName(
-  clientID: ClientID /* We will need to replace this with a bearer token and implement an identity service in order to give this method actual functionality */
-): string {
+//let dummyCount = 0 // TODO: Remove both of these variables once an actual user identity service is implemented
+//const clientIDToDummyNumber: Map<ClientID, number> = new Map<ClientID, number>()
+
+//const GOOGLE_CLIENT_ID = "948918026196-q49uid1opmf7oid570ptpl7kd1alcjru.apps.googleusercontent.com" // This is the application-wide client id for accessing the Google API
+
+async function retrieveDisplayName(
+  googleIDToken: string
+  //clientID: ClientID /* We will need to replace this with a bearer token and implement an identity service in order to give this method actual functionality */
+): Promise<string> {
+  const ticket = await client.verifyIdToken({
+    idToken: googleIDToken,
+    audience: process.env.GOOGLE_CLIENT_ID, // Specify the CLIENT_ID of the app that accesses the backend
+    // Or, if multiple clients access the backend:
+    //[CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3]
+  })
+  const payload = ticket.getPayload()
+  const userFullName = payload ? payload["name"] : ""
+
+  return userFullName ? userFullName : "" // TODO: Add option to go anonymous
+  /*
   if (!clientIDToDummyNumber.has(clientID)) {
     clientIDToDummyNumber.set(clientID, ++dummyCount) // This is a dummy method for now
   }
   const dummyNum = clientIDToDummyNumber.get(clientID)
-  return "Thing " + dummyNum?.toString()
+  return "Thing " + dummyNum?.toString() */
 }
 
 // Eventually we'll need to add a MongoDB connection, but we can keep this simple for now
